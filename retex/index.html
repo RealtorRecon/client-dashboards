@@ -1,0 +1,90 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Client Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/datatables.net/js/jquery.dataTables.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.11.4/css/jquery.dataTables.min.css">
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #tabs { margin-bottom: 20px; }
+    .tab { display: inline-block; padding: 10px 20px; margin-right: 5px; background: #eee; cursor: pointer; border-radius: 6px; }
+    .tab.active { background: #ccc; font-weight: bold; }
+    #table-container { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h2>Client Dashboard</h2>
+  <div id="tabs"></div>
+  <div id="table-container"></div>
+
+  <script>
+    const folderPath = ".";
+
+    async function getExcelFiles() {
+      const response = await fetch(".");
+      const text = await response.text();
+      const matches = text.match(/href="(\d{4}-\d{2}-\d{2}C\.xlsx)"/g) || [];
+      return matches.map(m => m.replace('href="', '').replace('"', ''));
+    }
+
+    function createTabs(files) {
+      const tabsContainer = document.getElementById("tabs");
+      tabsContainer.innerHTML = "";
+      files.forEach((file, index) => {
+        const tab = document.createElement("div");
+        tab.className = "tab" + (index === 0 ? " active" : "");
+        tab.innerText = file.replace(".xlsx", "");
+        tab.onclick = () => {
+          document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+          tab.classList.add("active");
+          loadFile(file);
+        };
+        tabsContainer.appendChild(tab);
+      });
+    }
+
+    function loadFile(fileName) {
+      fetch(fileName)
+        .then(res => res.arrayBuffer())
+        .then(data => {
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(firstSheet);
+          renderTable(json);
+        });
+    }
+
+    function renderTable(data) {
+      const container = document.getElementById("table-container");
+      container.innerHTML = "<table id='data-table' class='display' style='width:100%'></table>";
+
+      if (data.length === 0) return;
+
+      const columns = Object.keys(data[0]).map(key => ({ title: key, data: key }));
+
+      $(document).ready(function () {
+        $('#data-table').DataTable({
+          destroy: true,
+          data: data,
+          columns: columns
+        });
+      });
+    }
+
+    (async () => {
+      const files = await getExcelFiles();
+      if (files.length > 0) {
+        createTabs(files);
+        loadFile(files[0]);
+      } else {
+        document.getElementById("table-container").innerText = "No Excel files found.";
+      }
+    })();
+  </script>
+</body>
+</html>
