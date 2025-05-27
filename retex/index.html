@@ -6,27 +6,46 @@
   <title>Client Dashboard - Retex</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.datatables.net/1.11.4/js/jquery.dataTables.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.11.4/css/jquery.dataTables.min.css">
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
   <style>
     body { font-family: sans-serif; padding: 20px; }
     #tabs { margin-bottom: 20px; }
     .tab { display: inline-block; padding: 10px 20px; margin-right: 5px; background: #eee; cursor: pointer; border-radius: 6px; }
     .tab.active { background: #ccc; font-weight: bold; }
     #table-container { margin-top: 20px; }
+    table.dataTable tbody td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    table.dataTable thead th {
+      white-space: nowrap;
+    }
+    #toggle-permits {
+      margin-top: 10px;
+      cursor: pointer;
+      background: #007bff;
+      color: #fff;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+    }
   </style>
 </head>
 <body>
   <h2>Retex Client Dashboard</h2>
   <div id="tabs"></div>
+  <button id="toggle-permits">Show Permits</button>
   <div id="table-container"></div>
 
   <script>
     const files = ["2025-05-25C.xlsx", "2025-05-26C.xlsx", "2025-05-27C.xlsx"];
     const todayYear = new Date().getFullYear();
+    let permitsVisible = false;
 
     function createTabs() {
       const tabsContainer = document.getElementById("tabs");
+      tabsContainer.innerHTML = "";
       files.forEach((file, index) => {
         const tab = document.createElement("div");
         tab.className = "tab" + (index === 0 ? " active" : "");
@@ -53,6 +72,11 @@
       }
     }
 
+    function formatLink(url) {
+      if (!url) return "";
+      return `<a href="${url}" target="_blank">${url}</a>`;
+    }
+
     function loadFile(fileName) {
       fetch(fileName)
         .then(res => res.arrayBuffer())
@@ -61,12 +85,15 @@
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           let json = XLSX.utils.sheet_to_json(sheet);
 
-          // Add Roof Flag column
           json = json.map(row => {
-            return {
-              ...row,
-              "Roof Flag": flagRoof(row["Year Built"], row["Permits"])
-            };
+            row["Roof Flag"] = flagRoof(row["Year Built"], row["Permits"]);
+            if (row["FastPeople URL"]) {
+              row["FastPeople URL"] = formatLink(row["FastPeople URL"]);
+            }
+            if (row["Listing"]) {
+              row["Listing"] = formatLink(row["Listing"]);
+            }
+            return row;
           });
 
           renderTable(json);
@@ -79,14 +106,24 @@
 
       if (data.length === 0) return;
 
-      const columns = Object.keys(data[0]).map(key => ({ title: key, data: key }));
+      const columns = Object.keys(data[0]).map(key => ({
+        title: key,
+        data: key,
+        visible: key !== "Permits"
+      }));
 
       $(document).ready(function () {
-        $('#data-table').DataTable({
+        const table = $('#data-table').DataTable({
           destroy: true,
           data: data,
           columns: columns
         });
+
+        document.getElementById("toggle-permits").onclick = () => {
+          permitsVisible = !permitsVisible;
+          table.column(columns.findIndex(col => col.data === "Permits")).visible(permitsVisible);
+          document.getElementById("toggle-permits").innerText = permitsVisible ? "Hide Permits" : "Show Permits";
+        };
       });
     }
 
